@@ -24,7 +24,7 @@ st.write(
 # In[3]:
 
 
-df_deploc=pd.read_csv("/home/yves/Documents/data/ENTD_2019/input/k_deploc_public.csv",
+df_deploc=pd.read_csv("k_deploc_public.csv",
                       sep=';',decimal='.',encoding='latin_1',
                      dtype={'CATCOM_AA_ORI':'Int64','CATCOM_AA_DES':'Int64',
                             'MMOTIFDACC':'str','MMOY2S':'str','MTITR1S':'str',
@@ -70,7 +70,7 @@ df_deploc.loc[:,"AA_DES_CAT_3"]=pd.cut(df_deploc.loc[:,"AA_DES_CAT_2"],[0,1,2,3,
                      "Même commune","Pôle autre aire", "Reste autre aire","Autres"],right=True).astype(str)
 #
 #Intégration de données d'autres tables
-df_tcm_men=pd.read_csv("/home/yves/Documents/data/ENTD_2019/input/tcm_men_public.csv",
+df_tcm_men=pd.read_csv("tcm_men_public.csv",
                       sep=';',decimal='.',encoding='latin_1',
                      dtype={'CATCOM_AA_ORI':'Int64','CATCOM_AA_DES':'Int64',                         'DEP_RES':'str','NUTS_res':'str','TUU2017_RES':'str','TAA2017_RES':'str',
                             'CATCOM_AA_RES':'Int64'})
