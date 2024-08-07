@@ -1,0 +1,10 @@
+Création et activation de l'environnement :
+python -m venv streamlit-env
+source streamlit-env/bin/activate
+
+Installation de plotly et streamlit
+pip install plotly
+pip install streamlit
+
+Récupération de requirements.txt :
+pip freeze > requirements.txt
