@@ -17,9 +17,9 @@ st.write(
     "Exploitation graphique : enquête sur la mobilité des français - 2019"
 )
 st.write(
-   "Mobilité locale, trajets de moins de 80 km"
+   "Mobilité locale, trajets de moins de 80 km, hors retours au domicile"
 )
-
+#st.html("<a href=https://www.statistiques.developpement-durable.gouv.fr/resultats-detailles-de-lenquete-mobilite-des-personnes-de-2019>Source</a>")
 
 # In[3]:
 
@@ -78,15 +78,61 @@ df_tcm_men=df_tcm_men.rename(columns={"ident_men":"IDENT_MEN"})
 df_deploc=df_deploc.merge(df_tcm_men,how="left",on=["IDENT_MEN"])
 pd.options.mode.chained_assignment = None
 # Sélection sur semaine, déplacements locaux de moins de 80 km et motifs aller
-region=st.text_input("Quel code NUTS de région ? (FR pour l'ensemble)","FR")
-tuu=st.text_input("Quel tranche d'unité urbaine ? (De 0 à 8 pour Paris, FR pour l'ensemble)","FR")
-taa=st.text_input("Quel tranche d'aire d'attraction ? (De 0 à 5 pour Paris, FR pour l'ensemble)","FR")
 df_deploc_2=df_deploc.query("mobloc==1 and MMOTIFDES>=2 and MDISTTOT_fin<=80 ")
+
+#Sélection de la région par streamlit
+region_name=st.selectbox("Choisir une région :",["France entière","Auvergne - Rhône Alpes","Bourgogne - Franche Comté","Bretagne",
+                                            "Centre - Val de Loire","Corse","Grand Est","Hauts de France","Ile de France","Normandie","Nouvelle Aquitaine","Occitanie","Pays de la Loire","Sud"])
+region="FR"
+if region_name == "France entière" : region = "FR"
+if region_name == "Auvergne - Rhône Alpes" : region = "FRK"
+if region_name == "Bourgogne - Franche Comté" : region = "FRC"
+if region_name == "Bretagne" : region = "FRH"
+if region_name == "Centre - Val de Loire" : region = "FRB"
+if region_name == "Corse" : region = "FRM"
+if region_name == "Grand Est" : region = "FRF"
+if region_name == "Hauts de France" : region = "FRE"
+if region_name == "Ile de France" : region = "FR1"
+if region_name == "Normandie" : region = "FRD"
+if region_name == "Nouvelle Aquitaine" : region = "FRI"
+if region_name == "Occitanie" : region = "FRJ"
+if region_name == "Pays de la Loire" : region = "FRG"
+if region_name == "Sud" : region = "FRL"
 df_deploc_2=df_deploc_2[df_deploc_2["NUTS_res"].str.contains(region)==True]
-if tuu!="FR" :
-   df_deploc_2=df_deploc_2[df_deploc_2['TUU2017_RES'].str.contains(tuu)==True]
+
+#Sélection du statut de la commune
+statut_texte=st.selectbox("Statut de la commune de résidence (ensemble par défaut)",["Ensemble","Hors unité urbaine","Ville-centre","Banlieue","Ville isolée"])
+statut_com="FR"
+if statut_texte=="Hors unité urbaine" : statut_com="H"
+if statut_texte=="Ville-centre" : statut_com="C"
+if statut_texte=="Banlieue" : statut_com="B"
+if statut_texte=="Ville isolée" : statut_com="I"
+if statut_com!="FR" :
+   df_deploc_2=df_deploc_2[df_deploc_2['STATUTCOM_UU_RES'].str.contains(statut_com)==True]
+#Sélection de la tranche d'aire d'attraction
+taa_texte=st.selectbox("Tranche d'aire d'attraction des villes (commune de résidence)",["Ensemble","Commune hors attraction des villes","Aire de moins de 50 000 habitants",
+		"Aire de 50 000 à moins de 200 000 habitants","Aire de 200 000 à moins de 700 000 habitants","Aire de 700 000 habitants ou plus (hors Paris)","Aire de Paris"])
+taa="FR"
+if taa_texte=="Commune hors attraction des villes" : taa="0"
+if taa_texte=="Aire de moins de 50 000 habitants" : taa="1"
+if taa_texte=="Aire de 50 000 à moins de 200 000 habitants" : taa="2"
+if taa_texte=="Aire de 200 000 à moins de 700 000 habitants" : taa="3"
+if taa_texte=="Aire de 700 000 habitants ou plus (hors Paris)" : taa="4"
+if taa_texte=="Aire de Paris" : taa="5"
 if taa!="FR" :
    df_deploc_2=df_deploc_2[df_deploc_2['TAA2017_RES'].str.contains(taa)==True]
+
+#tuu=st.text_input("Quel tranche d'unité urbaine ? (De 0 à 8 pour Paris, FR pour l'ensemble)","FR")
+#if tuu!="FR" :
+#   df_deploc_2=df_deploc_2[df_deploc_2['TUU2017_RES'].str.contains(tuu)==True]
+
+#Sélection du motif
+motif_texte="Ensemble" 
+motif_texte=st.selectbox("Motif hors retours :",["Ensemble","Achats","Soins-démarches",
+                                             "Visites-accompagnement","Loisirs-vacances","Professionnel","N-D"])
+if motif_texte!="Ensemble" : df_deploc_2=df_deploc_2[df_deploc_2['MOTIF_CAT'].str.contains(motif_texte)==True]	                                             
+
+#Sélection des jours concernés par les déplacements
 jours=st.multiselect(
         "Choisir le jour", ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'], ['lundi','mardi','mercredi','jeudi','vendredi'],)
 df_deploc_2=df_deploc_2.loc[df_deploc_2["MDATE_jour"].isin(jours)]
@@ -104,7 +150,7 @@ df_sankey['source'] = df_sankey['source'].map(mapping_dict)
 df_sankey['target'] = df_sankey['target'].map(mapping_dict2)
 links_dict = df_sankey.to_dict(orient='list')
     
-# Elaboration du graphique
+# Elaboration du graphique sankey
 import plotly.graph_objects as go
 
 fig = go.Figure(data=[go.Sankey(
@@ -132,7 +178,44 @@ Texte3="Millions de voyageurs-km"
 fig.update_layout(title=Texte1+'<br><sup>'+Texte2+'</sup><br><sup>'+Texte3+'</sup>')
 st.plotly_chart(fig)
 
+#Graphique sur la distance
+df_deploc_2["Voyageurs-km"]=df_deploc_2["POND_vk"]
+df_deploc_2["Nbre_deplacements"]=df_deploc_2["POND_JOUR"]
+Titre2='Cumul suivant la distance du déplacement'+'<br><sup>'+\
+       "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
+fig2 = px.ecdf(df_deploc_2, x="MDISTTOT_fin", 
+              y=["Voyageurs-km","Nbre_deplacements"], 
+              title=Titre2,
+              labels={"MDISTTOT_fin":"Distance du déplacement","POND_vk":"Voyageurs-km"},
+             )
+fig2.update_layout(yaxis_title=None)
+fig2.update_layout(legend_title_text="Variable")
+fig2.update_xaxes(range=[0, 80])
+fig2.update_yaxes(range=[0, 1])
+fig2.add_annotation(x=30, y=0.98,
+            text="Un AR par semaine",
+            showarrow=False,
+            arrowhead=1)
+fig2.add_vline(x=20,line_width=1, line_dash="dash", line_color="green")
+st.plotly_chart(fig2)
 
+#Graphique sur les modes
+Titre3='Cumul des Vk suivant la distance du déplacement et le mode principal'+'<br><sup>'+\
+       "Source ENTD 2019 - Mobilité locale - Graphique YT"+'</sup><br><sup>'+\
+       'Voyageurs-km'+'</sup>'
+fig3 = px.histogram(df_deploc_2, x="DIST_CAT", 
+              y="POND_vk", 
+              title=Titre3,
+             color="MODE_CAT2",
+              labels={"DIST_CAT":"Distance du déplacement"},
+             category_orders={"DIST_CAT": ["Moins de 10 km","10-20 km","20-40 km","Plus de 40 km"],
+                             "MODE_CAT2":["Mode doux","Transport en commun",
+                                          "Voiture-passager ou autre","Voiture-conducteur","Autre"]},
+            color_discrete_sequence=["green", "blue", "goldenrod", "red", "magenta"],
+             )
+fig3.update_layout(yaxis_title="Voyageurs-km")
+fig3.update_layout(legend_title="Mode de transport principal")
+st.plotly_chart(fig3)
 
 
 
