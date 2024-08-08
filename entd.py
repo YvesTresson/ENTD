@@ -17,9 +17,12 @@ st.write(
     "Exploitation graphique : enquête sur la mobilité des français - 2019"
 )
 st.write(
-   "Mobilité locale, trajets de moins de 80 km, hors retours au domicile"
+   "Mobilité locale, trajets de moins de 80 km. Exploitation : YTAC - Yves Tresson - Août 2024"
 )
-#st.html("<a href=https://www.statistiques.developpement-durable.gouv.fr/resultats-detailles-de-lenquete-mobilite-des-personnes-de-2019>Source</a>")
+
+st.html(
+    "<a href=https://www.statistiques.developpement-durable.gouv.fr/resultats-detailles-de-lenquete-mobilite-des-personnes-de-2019>Source : ENTD 2019</a>"
+)
 
 # In[3]:
 
@@ -77,8 +80,9 @@ df_tcm_men=pd.read_csv("tcm_men_public.csv",
 df_tcm_men=df_tcm_men.rename(columns={"ident_men":"IDENT_MEN"})
 df_deploc=df_deploc.merge(df_tcm_men,how="left",on=["IDENT_MEN"])
 pd.options.mode.chained_assignment = None
-# Sélection sur semaine, déplacements locaux de moins de 80 km et motifs aller
-df_deploc_2=df_deploc.query("mobloc==1 and MMOTIFDES>=2 and MDISTTOT_fin<=80 ")
+
+# Sélection sur semaine, déplacements locaux de moins de 80 km
+df_deploc_2=df_deploc.query("mobloc==1 and MDISTTOT_fin<=80")
 
 #Sélection de la région par streamlit
 region_name=st.selectbox("Choisir une région :",["France entière","Auvergne - Rhône Alpes","Bourgogne - Franche Comté","Bretagne",
@@ -127,22 +131,81 @@ if taa!="FR" :
 #   df_deploc_2=df_deploc_2[df_deploc_2['TUU2017_RES'].str.contains(tuu)==True]
 
 #Sélection du motif
-motif_texte="Ensemble" 
-motif_texte=st.selectbox("Motif hors retours :",["Ensemble","Achats","Soins-démarches",
+motif_texte="Tous motifs hors retours" 
+motif_texte=st.selectbox("Motif (attention aux retours) :",["Tous motifs hors retours","Tous motifs","Retours","Achats","Soins-démarches",
                                              "Visites-accompagnement","Loisirs-vacances","Professionnel","N-D"])
-if motif_texte!="Ensemble" : df_deploc_2=df_deploc_2[df_deploc_2['MOTIF_CAT'].str.contains(motif_texte)==True]	                                             
+if motif_texte=="Tous motifs hors retours" : df_deploc_2=df_deploc_2.query("MMOTIFDES>=2")
+else :
+    if motif_texte!="Tous motifs" : df_deploc_2=df_deploc_2[df_deploc_2['MOTIF_CAT'].str.contains(motif_texte)==True]	                                             
 
 #Sélection des jours concernés par les déplacements
 jours=st.multiselect(
         "Choisir le jour", ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'], ['lundi','mardi','mercredi','jeudi','vendredi'],)
 df_deploc_2=df_deploc_2.loc[df_deploc_2["MDATE_jour"].isin(jours)]
+
+
+import plotly.graph_objects as go
+
+#Graphique sur la distance
+df_deploc_2["Voyageurs-km"]=df_deploc_2["POND_vk"]
+df_deploc_2["Nbre_deplacements"]=df_deploc_2["POND_JOUR"]
+Titre2='Cumul suivant la distance du déplacement'+'<br><sup>'+\
+       "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
+fig2 = px.ecdf(df_deploc_2, x="MDISTTOT_fin", 
+              y=["Voyageurs-km","Nbre_deplacements"], 
+              title=Titre2,
+              labels={"MDISTTOT_fin":"Distance du déplacement","POND_vk":"Voyageurs-km"},
+             )
+fig2.update_layout(yaxis_title=None)
+fig2.update_layout(legend_title_text="Variable")
+fig2.update_xaxes(range=[0, 80])
+fig2.update_yaxes(range=[0, 1])
+#fig2.add_annotation(x=30, y=0.98,
+#            text="Un AR par semaine",
+#            showarrow=False,
+#            arrowhead=1)
+fig2.add_vline(x=20,line_width=1, line_dash="dash", line_color="green")
+st.plotly_chart(fig2)
+
+#Graphique sur les modes et la distance de déplacement
+Titre3='Cumul des Vk suivant la distance du déplacement et le mode principal'+'<br><sup>'+\
+       "Source ENTD 2019 - Mobilité locale - Graphique YT"+'</sup><br><sup>'+\
+       'Voyageurs-km'+'</sup>'
+fig3 = px.histogram(df_deploc_2, x="DIST_CAT", 
+              y="POND_vk", 
+              title=Titre3,
+             color="MODE_CAT2",
+              labels={"DIST_CAT":"Distance du déplacement"},
+             category_orders={"DIST_CAT": ["Moins de 10 km","10-20 km","20-40 km","Plus de 40 km"],
+                             "MODE_CAT2":["Mode doux","Transport en commun",
+                                          "Voiture-passager ou autre","Voiture-conducteur","Autre"]},
+            color_discrete_sequence=["green", "blue", "goldenrod", "red", "magenta"],
+             )
+fig3.update_layout(yaxis_title="Voyageurs-km")
+fig3.update_layout(legend_title="Mode de transport principal")
+st.plotly_chart(fig3)
+
+#Graphique sur les motifs et la distance de déplacement
+Titre4='Cumul des Vk suivant la distance du déplacement et le motif'+'<br><sup>'+\
+       "Source ENTD 2019 - Mobilité locale - Graphique YT"+'</sup><br><sup>'+\
+       'Millions de voyageurs-km'+'</sup>'
+fig4 = px.histogram(df_deploc_2, x="DIST_CAT", 
+              y="POND_vk", 
+              title=Titre4,
+             color="MOTIF_CAT2",
+              labels={"DIST_CAT":"Distance du déplacement"},
+             category_orders={"DIST_CAT": ["Moins de 10 km","10-20 km","20-40 km","Plus de 40 km"],
+                             "MOTIF_CAT2":["Achats","Soins-démarches","Visites-accompagnement","Loisirs-vacances","Professionnel"]}
+             )
+fig4.update_layout(yaxis_title="Voyageurs-km")
+fig4.update_layout(legend_title="Motif")
+st.plotly_chart(fig4)
+
+# Elaboration du graphique sankey
 df_sankey=df_deploc_2.groupby(["AA_ORI_CAT","AA_DES_CAT_2"],dropna=False, observed=True)["POND_vk"].sum().reset_index()
 df_sankey.columns = ['source','target','value']
 #df_sankey.fillna(99.0,inplace=True)
-df_sankey["value"]=df_sankey["value"]/5000000
-    #print(sum(df_sankey["value"]))
-    #print(df_sankey)
-    #links_dict = df_sankey.to_dict(orient='list')
+df_sankey["value"]=df_sankey["value"]/1000000
 mapping_dict = {"Pôle" : 0,"Couronne" : 1,"Hors attraction des villes" : 2,"Autres" : 3}
 mapping_dict2 = {1 : 4, 2 : 5, 3 : 6, 4 : 7, 5 : 8, 6 :9 , 9 : 10}
                      #"Pôle autre aire" : 8, "Reste autre aire" : 9}
@@ -150,9 +213,6 @@ df_sankey['source'] = df_sankey['source'].map(mapping_dict)
 df_sankey['target'] = df_sankey['target'].map(mapping_dict2)
 links_dict = df_sankey.to_dict(orient='list')
     
-# Elaboration du graphique sankey
-import plotly.graph_objects as go
-
 fig = go.Figure(data=[go.Sankey(
         valuesuffix = " Millions vk",
         node = dict(
@@ -172,54 +232,11 @@ fig = go.Figure(data=[go.Sankey(
 
     )
     ])
-Texte1="Flux entre types de communes - Aller (vk)"
+Texte1="Flux entre types de communes (vk)"
 Texte2="Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"
 Texte3="Millions de voyageurs-km"
 fig.update_layout(title=Texte1+'<br><sup>'+Texte2+'</sup><br><sup>'+Texte3+'</sup>')
 st.plotly_chart(fig)
-
-#Graphique sur la distance
-df_deploc_2["Voyageurs-km"]=df_deploc_2["POND_vk"]
-df_deploc_2["Nbre_deplacements"]=df_deploc_2["POND_JOUR"]
-Titre2='Cumul suivant la distance du déplacement'+'<br><sup>'+\
-       "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
-fig2 = px.ecdf(df_deploc_2, x="MDISTTOT_fin", 
-              y=["Voyageurs-km","Nbre_deplacements"], 
-              title=Titre2,
-              labels={"MDISTTOT_fin":"Distance du déplacement","POND_vk":"Voyageurs-km"},
-             )
-fig2.update_layout(yaxis_title=None)
-fig2.update_layout(legend_title_text="Variable")
-fig2.update_xaxes(range=[0, 80])
-fig2.update_yaxes(range=[0, 1])
-fig2.add_annotation(x=30, y=0.98,
-            text="Un AR par semaine",
-            showarrow=False,
-            arrowhead=1)
-fig2.add_vline(x=20,line_width=1, line_dash="dash", line_color="green")
-st.plotly_chart(fig2)
-
-#Graphique sur les modes
-Titre3='Cumul des Vk suivant la distance du déplacement et le mode principal'+'<br><sup>'+\
-       "Source ENTD 2019 - Mobilité locale - Graphique YT"+'</sup><br><sup>'+\
-       'Voyageurs-km'+'</sup>'
-fig3 = px.histogram(df_deploc_2, x="DIST_CAT", 
-              y="POND_vk", 
-              title=Titre3,
-             color="MODE_CAT2",
-              labels={"DIST_CAT":"Distance du déplacement"},
-             category_orders={"DIST_CAT": ["Moins de 10 km","10-20 km","20-40 km","Plus de 40 km"],
-                             "MODE_CAT2":["Mode doux","Transport en commun",
-                                          "Voiture-passager ou autre","Voiture-conducteur","Autre"]},
-            color_discrete_sequence=["green", "blue", "goldenrod", "red", "magenta"],
-             )
-fig3.update_layout(yaxis_title="Voyageurs-km")
-fig3.update_layout(legend_title="Mode de transport principal")
-st.plotly_chart(fig3)
-
-
-
-
 
 
 
