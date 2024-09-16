@@ -14,7 +14,7 @@ import plotly.express as px
 
 
 st.write(
-    "Exploitation graphique : enquête sur la mobilité des français - 2019"
+    "**Exploitation graphique : enquête sur la mobilité des français - 2019**"
 )
 st.write(
    "Mobilité locale, trajets de moins de 80 km. Exploitation : YTAC - Yves Tresson - Août 2024"
@@ -79,10 +79,32 @@ df_tcm_men=pd.read_csv("tcm_men_public.csv",
                             'CATCOM_AA_RES':'Int64'})
 df_tcm_men=df_tcm_men.rename(columns={"ident_men":"IDENT_MEN"})
 df_deploc=df_deploc.merge(df_tcm_men,how="left",on=["IDENT_MEN"])
+df_ind=pd.read_csv("k_individu_public.csv",usecols=[0,1,3],sep=';',decimal='.',encoding='latin_1')
+df_deploc=df_deploc.merge(df_ind,how="left",on=["IDENT_IND"])
 pd.options.mode.chained_assignment = None
 
 # Sélection sur semaine, déplacements locaux de moins de 80 km
 df_deploc_2=df_deploc.query("mobloc==1 and MDISTTOT_fin<=80")
+
+#Sélection des jours concernés par les déplacements
+jours=st.multiselect(
+        "Choisir le jour", ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'], ['lundi','mardi','mercredi','jeudi','vendredi'],)
+df_deploc_2=df_deploc_2.loc[df_deploc_2["MDATE_jour"].isin(jours)]
+
+#Sélection du motif
+motif_texte="Tous motifs hors retours" 
+motif_texte=st.selectbox("Motif (attention aux retours) :",["Tous motifs hors retours","Tous motifs","Retours","Achats","Soins-démarches",
+                                             "Visites-accompagnement","Loisirs-vacances","Professionnel","N-D"])
+if motif_texte=="Tous motifs hors retours" : df_deploc_2=df_deploc_2.query("MMOTIFDES>=2")
+else :
+    if motif_texte!="Tous motifs" : df_deploc_2=df_deploc_2[df_deploc_2['MOTIF_CAT'].str.contains(motif_texte)==True]	                                             
+
+#Niveau national fixé après la sélection des jours et des motifs sous forme de df_deploc_3
+df_deploc_3=df_deploc_2
+
+st.write(
+    "Les jours et motifs sélectionnés serviront pour les deux niveaux comparés : national et sélection"
+)
 
 #Sélection de la région par streamlit
 region_name=st.selectbox("Choisir une région :",["France entière","Auvergne - Rhône Alpes","Bourgogne - Franche Comté","Bretagne",
@@ -126,30 +148,64 @@ if taa_texte=="Aire de Paris" : taa="5"
 if taa!="FR" :
    df_deploc_2=df_deploc_2[df_deploc_2['TAA2017_RES'].str.contains(taa)==True]
 
-#tuu=st.text_input("Quel tranche d'unité urbaine ? (De 0 à 8 pour Paris, FR pour l'ensemble)","FR")
-#if tuu!="FR" :
-#   df_deploc_2=df_deploc_2[df_deploc_2['TUU2017_RES'].str.contains(tuu)==True]
-
-#Sélection du motif
-motif_texte="Tous motifs hors retours" 
-motif_texte=st.selectbox("Motif (attention aux retours) :",["Tous motifs hors retours","Tous motifs","Retours","Achats","Soins-démarches",
-                                             "Visites-accompagnement","Loisirs-vacances","Professionnel","N-D"])
-if motif_texte=="Tous motifs hors retours" : df_deploc_2=df_deploc_2.query("MMOTIFDES>=2")
-else :
-    if motif_texte!="Tous motifs" : df_deploc_2=df_deploc_2[df_deploc_2['MOTIF_CAT'].str.contains(motif_texte)==True]	                                             
-
-#Sélection des jours concernés par les déplacements
-jours=st.multiselect(
-        "Choisir le jour", ['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'], ['lundi','mardi','mercredi','jeudi','vendredi'],)
-df_deploc_2=df_deploc_2.loc[df_deploc_2["MDATE_jour"].isin(jours)]
-
-
 import plotly.graph_objects as go
+
+#Graphique sur les modes et la distance de déplacement avec comparaison sélection et national
+Titre3='Km par voyageur suivant la distance du déplacement et le mode principal'+'<br><sup>'+\
+       "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
+df_deploc_3["y"]=df_deploc_3["POND_vk"]/sum(df_deploc_3["pond_indC"]) #niveau national
+df_3_sum=df_deploc_3.loc[:,("DIST_CAT","MODE_CAT2","y")].groupby(["DIST_CAT","MODE_CAT2"],observed=True).sum()
+df_3_sum=df_3_sum.reset_index()
+df_3_sum["Niveau"]="National" 
+df_deploc_2["y"]=df_deploc_2["POND_vk"]/sum(df_deploc_2["pond_indC"]) #Niveau sélectionné
+df_2_sum=pd.pivot_table(df_deploc_2.loc[:,("DIST_CAT","MODE_CAT2","y")], index=["DIST_CAT","MODE_CAT2"], values="y", 
+                                aggfunc="sum",margins=False)
+df_2_sum=df_2_sum.reset_index() #remet sous forme de dataframe avec 3 colonnes.
+df_2_sum["Niveau"]="Sélection"   
+df_sum=pd.concat([df_3_sum,df_2_sum], ignore_index=True) # rassemble les 2 niveaux    
+fig3 = px.bar(df_sum,x="DIST_CAT",
+              y="y",
+              title=Titre3,
+             color="MODE_CAT2",
+             facet_col="Niveau",
+              labels={"DIST_CAT":"Distance du déplacement"},
+             category_orders={"DIST_CAT": ["Moins de 10 km","10-20 km","20-40 km","Plus de 40 km"],
+                             "MODE_CAT2":["Mode doux","Transport en commun",
+                                          "Voiture-passager ou autre","Voiture-conducteur","Autre"]},
+            color_discrete_sequence=["green", "blue", "goldenrod", "red", "magenta"]
+             )
+fig3.update_layout(yaxis_title="Km par voyageur")
+fig3.update_layout(legend_title="Mode de transport principal")
+st.plotly_chart(fig3)
+
+#Graphique sur les motifs et la distance de déplacement avec comparaison sélection et national
+Titre4='Km par voyageur suivant la distance du déplacement et le motif'+'<br><sup>'+\
+       "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
+df_3_sum2=df_deploc_3.loc[:,("DIST_CAT","MOTIF_CAT2","y")].groupby(["DIST_CAT","MOTIF_CAT2"],observed=True).sum()
+df_3_sum2=df_3_sum2.reset_index()
+df_3_sum2["Niveau"]="National" 
+df_2_sum2=pd.pivot_table(df_deploc_2.loc[:,("DIST_CAT","MOTIF_CAT2","y")], index=["DIST_CAT","MOTIF_CAT2"], values="y", 
+                                aggfunc="sum",margins=False)
+df_2_sum2=df_2_sum2.reset_index() #remet sous forme de dataframe avec 3 colonnes.
+df_2_sum2["Niveau"]="Sélection"  
+df_sum2=pd.concat([df_3_sum2,df_2_sum2], ignore_index=True) 
+fig4 = px.histogram(df_sum2, x="DIST_CAT", 
+              y="y", 
+              title=Titre4,
+             color="MOTIF_CAT2",
+             facet_col="Niveau",
+              labels={"DIST_CAT":"Distance du déplacement"},
+             category_orders={"DIST_CAT": ["Moins de 10 km","10-20 km","20-40 km","Plus de 40 km"],
+                             "MOTIF_CAT2":["Achats","Soins-démarches","Visites-accompagnement","Loisirs-vacances","Professionnel"]}
+             )
+fig4.update_layout(yaxis_title="Km par voyageur")
+fig4.update_layout(legend_title="Motif")
+st.plotly_chart(fig4)
 
 #Graphique sur la distance
 df_deploc_2["Voyageurs-km"]=df_deploc_2["POND_vk"]
 df_deploc_2["Nbre_deplacements"]=df_deploc_2["POND_JOUR"]
-Titre2='Cumul suivant la distance du déplacement'+'<br><sup>'+\
+Titre2='Cumul suivant la distance du déplacement - Sélection'+'<br><sup>'+\
        "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
 fig2 = px.ecdf(df_deploc_2, x="MDISTTOT_fin", 
               y=["Voyageurs-km","Nbre_deplacements"], 
@@ -166,40 +222,6 @@ fig2.update_yaxes(range=[0, 1])
 #            arrowhead=1)
 fig2.add_vline(x=20,line_width=1, line_dash="dash", line_color="green")
 st.plotly_chart(fig2)
-
-#Graphique sur les modes et la distance de déplacement
-Titre3='Cumul des Vk suivant la distance du déplacement et le mode principal'+'<br><sup>'+\
-       "Source ENTD 2019 - Mobilité locale - Graphique YT"+'</sup><br><sup>'+\
-       'Voyageurs-km'+'</sup>'
-fig3 = px.histogram(df_deploc_2, x="DIST_CAT", 
-              y="POND_vk", 
-              title=Titre3,
-             color="MODE_CAT2",
-              labels={"DIST_CAT":"Distance du déplacement"},
-             category_orders={"DIST_CAT": ["Moins de 10 km","10-20 km","20-40 km","Plus de 40 km"],
-                             "MODE_CAT2":["Mode doux","Transport en commun",
-                                          "Voiture-passager ou autre","Voiture-conducteur","Autre"]},
-            color_discrete_sequence=["green", "blue", "goldenrod", "red", "magenta"],
-             )
-fig3.update_layout(yaxis_title="Voyageurs-km")
-fig3.update_layout(legend_title="Mode de transport principal")
-st.plotly_chart(fig3)
-
-#Graphique sur les motifs et la distance de déplacement
-Titre4='Cumul des Vk suivant la distance du déplacement et le motif'+'<br><sup>'+\
-       "Source ENTD 2019 - Mobilité locale - Graphique YT"+'</sup><br><sup>'+\
-       'Millions de voyageurs-km'+'</sup>'
-fig4 = px.histogram(df_deploc_2, x="DIST_CAT", 
-              y="POND_vk", 
-              title=Titre4,
-             color="MOTIF_CAT2",
-              labels={"DIST_CAT":"Distance du déplacement"},
-             category_orders={"DIST_CAT": ["Moins de 10 km","10-20 km","20-40 km","Plus de 40 km"],
-                             "MOTIF_CAT2":["Achats","Soins-démarches","Visites-accompagnement","Loisirs-vacances","Professionnel"]}
-             )
-fig4.update_layout(yaxis_title="Voyageurs-km")
-fig4.update_layout(legend_title="Motif")
-st.plotly_chart(fig4)
 
 # Elaboration du graphique sankey
 df_sankey=df_deploc_2.groupby(["AA_ORI_CAT","AA_DES_CAT_2"],dropna=False, observed=True)["POND_vk"].sum().reset_index()
@@ -232,11 +254,22 @@ fig = go.Figure(data=[go.Sankey(
 
     )
     ])
-Texte1="Flux entre types de communes (vk)"
+Texte1="Flux entre types de communes - Sélection (vk)"
 Texte2="Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"
 Texte3="Millions de voyageurs-km"
 fig.update_layout(title=Texte1+'<br><sup>'+Texte2+'</sup><br><sup>'+Texte3+'</sup>')
 st.plotly_chart(fig)
+
+#Dataframes
+st.write(
+   "Tableau des résultats : catégories de distance et modes de déplacements"
+)
+st.dataframe(df_sum)
+
+st.write(
+   "Tableau des résultats : catégories de distance et motifs de déplacements"
+)
+st.dataframe(df_sum2)
 
 
 
