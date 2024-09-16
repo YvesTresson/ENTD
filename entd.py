@@ -24,6 +24,9 @@ st.html(
     "<a href=https://www.statistiques.developpement-durable.gouv.fr/resultats-detailles-de-lenquete-mobilite-des-personnes-de-2019>Source : ENTD 2019</a>"
 )
 
+st.write(
+   "Attention : la représentativité régionale n'est pas garantie par l'enquête. Toute sélection sur ce thème est donc à examiner avec circonspection, d'autant plus avec un choix de statut ou d'aire d'attraction. De façon générale, un petit échantillon ne sera pas significatif."
+)
 # In[3]:
 
 
@@ -260,16 +263,25 @@ Texte3="Millions de voyageurs-km"
 fig.update_layout(title=Texte1+'<br><sup>'+Texte2+'</sup><br><sup>'+Texte3+'</sup>')
 st.plotly_chart(fig)
 
-#Dataframes
+#Dataframes de rendu
+data_tempo=[["National",sum(df_deploc_3["POND_vk"]),sum(df_deploc_3["pond_indC"])],["Sélection",sum(df_deploc_2["POND_vk"]),sum(df_deploc_2["pond_indC"])]]
+df_tempo=pd.DataFrame(data=data_tempo,columns=["Niveau","Somme des voyageurs-km","Nombre d'individus"])
+df_tempo["Parcours moyen"]=df_tempo["Somme des voyageurs-km"]/df_tempo["Nombre d'individus"]
 st.write(
-   "Tableau des résultats : catégories de distance et modes de déplacements"
+   "Tableau des poids respectifs en termes de voyageurs-km et d'individus. Attention : plus la sélection est petite, moins les résultats sont fiables"
 )
-st.dataframe(df_sum)
+st.dataframe(df_tempo,column_config={"Somme des voyageurs-km":st.column_config.NumberColumn(format="%0.0f"),
+				"Nombre d'individus":st.column_config.NumberColumn(format="%0.0f"),
+				"Parcours moyen":st.column_config.NumberColumn(format="%0.2f")},hide_index=True)
+st.write(
+   "Tableau des résultats : catégories de distance et modes de déplacements."
+)
+st.dataframe(df_sum,column_config={"y":st.column_config.NumberColumn("km/voyageur",format="%0.2f")},hide_index=True)
 
 st.write(
-   "Tableau des résultats : catégories de distance et motifs de déplacements"
+   "Tableau des résultats : catégories de distance et motifs de déplacements."
 )
-st.dataframe(df_sum2)
+st.dataframe(df_sum2,column_config={"y":st.column_config.NumberColumn("km/voyageur",format="%0.2f")},hide_index=True)
 
 
 
