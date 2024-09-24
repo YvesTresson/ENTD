@@ -1,4 +1,4 @@
-# streamlit run test.py # en se plaçant dans le répertoire contenant test.py en ligne de commande.
+# streamlit run entd.py # en se plaçant dans le répertoire contenant entd.py en ligne de commande.
 # https://docs.streamlit.io/
 
 import streamlit as st
@@ -85,9 +85,11 @@ df_deploc=df_deploc.merge(df_tcm_men,how="left",on=["IDENT_MEN"])
 df_ind=pd.read_csv("k_individu_public.csv",usecols=[0,1,3],sep=';',decimal='.',encoding='latin_1')
 df_deploc=df_deploc.merge(df_ind,how="left",on=["IDENT_IND"])
 pd.options.mode.chained_assignment = None
+somme=sum(df_ind["pond_indC"]) #donne bien 59 482 366 individus
+#st.write(somme)
 
 # Sélection sur semaine, déplacements locaux de moins de 80 km
-df_deploc_2=df_deploc.query("mobloc==1 and MDISTTOT_fin<=80")
+df_deploc_2=df_deploc.query("mobloc==1")# and MDISTTOT_fin<=80")# Ce seul critère "mobloc==1" permet d'être conforme aux résultats publiés de l'enquête
 
 #Sélection des jours concernés par les déplacements
 jours=st.multiselect(
@@ -96,7 +98,7 @@ df_deploc_2=df_deploc_2.loc[df_deploc_2["MDATE_jour"].isin(jours)]
 
 #Sélection du motif
 motif_texte="Tous motifs hors retours" 
-motif_texte=st.selectbox("Motif (attention aux retours) :",["Tous motifs hors retours","Tous motifs","Retours","Achats","Soins-démarches",
+motif_texte=st.selectbox("Motif (attention aux retours qui sont importants) :",["Tous motifs hors retours","Tous motifs","Retours","Achats","Soins-démarches",
                                              "Visites-accompagnement","Loisirs-vacances","Professionnel","N-D"])
 if motif_texte=="Tous motifs hors retours" : df_deploc_2=df_deploc_2.query("MMOTIFDES>=2")
 else :
@@ -154,17 +156,25 @@ if taa!="FR" :
 import plotly.graph_objects as go
 
 #Graphique sur les modes et la distance de déplacement avec comparaison sélection et national
+#Création de la variable y (km par voyageur) pour les deux niveaux
 Titre3='Km par voyageur suivant la distance du déplacement et le mode principal'+'<br><sup>'+\
        "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
-df_deploc_3["y"]=df_deploc_3["POND_vk"]/sum(df_deploc_3["pond_indC"]) #niveau national
-df_3_sum=df_deploc_3.loc[:,("DIST_CAT","MODE_CAT2","y")].groupby(["DIST_CAT","MODE_CAT2"],observed=True).sum()
+# définition de la somme des individus sans double compte
+def somme(df) :
+    df_tempo=df.loc[:,("IDENT_IND","pond_indC")].drop_duplicates()
+    return sum(df_tempo["pond_indC"])
+#st.write(somme(df_deploc_2))
+df_3_sum=pd.pivot_table(df_deploc_3.loc[:,("DIST_CAT","MODE_CAT2","POND_vk")], index=["DIST_CAT","MODE_CAT2"], values=["POND_vk"], 
+                                aggfunc="sum",margins=False)
 df_3_sum=df_3_sum.reset_index()
 df_3_sum["Niveau"]="National" 
-df_deploc_2["y"]=df_deploc_2["POND_vk"]/sum(df_deploc_2["pond_indC"]) #Niveau sélectionné
-df_2_sum=pd.pivot_table(df_deploc_2.loc[:,("DIST_CAT","MODE_CAT2","y")], index=["DIST_CAT","MODE_CAT2"], values="y", 
+df_3_sum["y"]=df_3_sum["POND_vk"]/somme(df_deploc_3) #Niveau national  
+#df_deploc_2["y"]=df_deploc_2["POND_vk"]/sum(df_deploc_2["pond_indC"]) #Niveau sélectionné
+df_2_sum=pd.pivot_table(df_deploc_2.loc[:,("DIST_CAT","MODE_CAT2","POND_vk")], index=["DIST_CAT","MODE_CAT2"], values=["POND_vk"], 
                                 aggfunc="sum",margins=False)
 df_2_sum=df_2_sum.reset_index() #remet sous forme de dataframe avec 3 colonnes.
-df_2_sum["Niveau"]="Sélection"   
+df_2_sum["Niveau"]="Sélection"
+df_2_sum["y"]=df_2_sum["POND_vk"]/somme(df_deploc_2) #Niveau sélectionné   
 df_sum=pd.concat([df_3_sum,df_2_sum], ignore_index=True) # rassemble les 2 niveaux    
 fig3 = px.bar(df_sum,x="DIST_CAT",
               y="y",
@@ -184,13 +194,15 @@ st.plotly_chart(fig3)
 #Graphique sur les motifs et la distance de déplacement avec comparaison sélection et national
 Titre4='Km par voyageur suivant la distance du déplacement et le motif'+'<br><sup>'+\
        "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
-df_3_sum2=df_deploc_3.loc[:,("DIST_CAT","MOTIF_CAT2","y")].groupby(["DIST_CAT","MOTIF_CAT2"],observed=True).sum()
+df_3_sum2=df_deploc_3.loc[:,("DIST_CAT","MOTIF_CAT2","POND_vk")].groupby(["DIST_CAT","MOTIF_CAT2"],observed=True).sum()
 df_3_sum2=df_3_sum2.reset_index()
 df_3_sum2["Niveau"]="National" 
-df_2_sum2=pd.pivot_table(df_deploc_2.loc[:,("DIST_CAT","MOTIF_CAT2","y")], index=["DIST_CAT","MOTIF_CAT2"], values="y", 
+df_3_sum2["y"]=df_3_sum2["POND_vk"]/somme(df_deploc_3) #Niveau national  
+df_2_sum2=pd.pivot_table(df_deploc_2.loc[:,("DIST_CAT","MOTIF_CAT2","POND_vk")], index=["DIST_CAT","MOTIF_CAT2"], values=["POND_vk"], 
                                 aggfunc="sum",margins=False)
 df_2_sum2=df_2_sum2.reset_index() #remet sous forme de dataframe avec 3 colonnes.
 df_2_sum2["Niveau"]="Sélection"  
+df_2_sum2["y"]=df_2_sum2["POND_vk"]/somme(df_deploc_2) #Niveau sélectionné 
 df_sum2=pd.concat([df_3_sum2,df_2_sum2], ignore_index=True) 
 fig4 = px.histogram(df_sum2, x="DIST_CAT", 
               y="y", 
@@ -237,7 +249,7 @@ mapping_dict2 = {1 : 4, 2 : 5, 3 : 6, 4 : 7, 5 : 8, 6 :9 , 9 : 10}
 df_sankey['source'] = df_sankey['source'].map(mapping_dict)
 df_sankey['target'] = df_sankey['target'].map(mapping_dict2)
 links_dict = df_sankey.to_dict(orient='list')
-    
+  
 fig = go.Figure(data=[go.Sankey(
         valuesuffix = " Millions vk",
         node = dict(
@@ -257,14 +269,47 @@ fig = go.Figure(data=[go.Sankey(
 
     )
     ])
-Texte1="Flux entre types de communes - Sélection (vk)"
+Texte1="Flux entre types de communes -vk) - Sélection"
 Texte2="Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"
 Texte3="Millions de voyageurs-km"
 fig.update_layout(title=Texte1+'<br><sup>'+Texte2+'</sup><br><sup>'+Texte3+'</sup>')
 st.plotly_chart(fig)
 
+# Graphique sur les tranches d'attraction et les motifs
+Titre5='Km par voyageur suivant la tranche d\'attraction et le motif'+'<br><sup>'+\
+       "Source ENTD 2019 - Mobilité locale moins de 80 km - Graphique YT"+'</sup><br><sup>'
+df_2_sum3=pd.pivot_table(df_deploc_2.loc[:,("TAA2017_RES","MOTIF_CAT2","POND_vk")], index=["TAA2017_RES","MOTIF_CAT2"], values=["POND_vk"], 
+                                aggfunc="sum",margins=False)
+df_2_sum3=df_2_sum3.reset_index()
+# On remplit une liste des poids d'individus suivant les aires d'attraction
+tempo=[1,1,1,1,1,1]
+for i in range(6) :
+    s=str(i)
+    tempo[i]=somme(df_deploc_2[df_deploc_2["TAA2017_RES"].str.contains(s)==True])
+#st.write(tempo)
+for i in range(len(df_2_sum3)) :
+	k=int(df_2_sum3.loc[i,("TAA2017_RES")])
+	df_2_sum3.loc[i,"y"]=df_2_sum3.loc[i,"POND_vk"]/tempo[k]
+df_2_sum3["TAA2017_RES"] = df_2_sum3["TAA2017_RES"].replace({"0":"Commune hors attraction des villes","1":"Aire de moins de 50 000 habitants",
+		"2":"Aire de 50 000 à moins de 200 000 habitants","3":"Aire de 200 000 à moins de 700 000 habitants",
+		"4":"Aire de 700 000 habitants ou plus (hors Paris)","5":"Aire de Paris"})
+fig5 = px.bar(df_2_sum3, x="TAA2017_RES", 
+              y="y", 
+              title=Titre5,
+             color="MOTIF_CAT2",
+             #facet_col="Niveau",
+              labels={"TAA2017_RES":"Tranche d'attraction"},
+             category_orders={"TAA2017_RES": ["Commune hors attraction des villes","Aire de moins de 50 000 habitants",
+		"Aire de 50 000 à moins de 200 000 habitants","Aire de 200 000 à moins de 700 000 habitants","Aire de 700 000 habitants ou plus (hors Paris)","Aire de Paris"],
+                             "MOTIF_CAT2":["Achats","Soins-démarches","Visites-accompagnement","Loisirs-vacances","Professionnel"]}
+             )
+fig5.update_layout(yaxis_title="Km par voyageur")
+fig5.update_layout(legend_title="Motif")
+st.plotly_chart(fig5)
+
+  
 #Dataframes de rendu
-data_tempo=[["National",sum(df_deploc_3["POND_vk"]),sum(df_deploc_3["pond_indC"])],["Sélection",sum(df_deploc_2["POND_vk"]),sum(df_deploc_2["pond_indC"])]]
+data_tempo=[["National",sum(df_deploc_3["POND_vk"]),somme(df_deploc_3)],["Sélection",sum(df_deploc_2["POND_vk"]),somme(df_deploc_2)]]
 df_tempo=pd.DataFrame(data=data_tempo,columns=["Niveau","Somme des voyageurs-km","Nombre d'individus"])
 df_tempo["Parcours moyen"]=df_tempo["Somme des voyageurs-km"]/df_tempo["Nombre d'individus"]
 st.write(
@@ -276,12 +321,20 @@ st.dataframe(df_tempo,column_config={"Somme des voyageurs-km":st.column_config.N
 st.write(
    "Tableau des résultats : catégories de distance et modes de déplacements."
 )
-st.dataframe(df_sum,column_config={"y":st.column_config.NumberColumn("km/voyageur",format="%0.2f")},hide_index=True)
+st.dataframe(df_sum,column_config={"POND_vk":st.column_config.NumberColumn("Somme des voyageurs-km",format="%0.0f"),
+				"y":st.column_config.NumberColumn("km/voyageur",format="%0.2f")},hide_index=True)
 
 st.write(
    "Tableau des résultats : catégories de distance et motifs de déplacements."
 )
-st.dataframe(df_sum2,column_config={"y":st.column_config.NumberColumn("km/voyageur",format="%0.2f")},hide_index=True)
+st.dataframe(df_sum2,column_config={"POND_vk":st.column_config.NumberColumn("Somme des voyageurs-km",format="%0.0f"),
+				"y":st.column_config.NumberColumn("km/voyageur",format="%0.2f")},hide_index=True)
+
+st.write(
+   "Tableau des résultats : tranche d'attraction et motifs de déplacements."
+)
+st.dataframe(df_2_sum3,column_config={"POND_vk":st.column_config.NumberColumn("Somme des voyageurs-km",format="%0.0f"),
+				"y":st.column_config.NumberColumn("km/voyageur",format="%0.2f")},hide_index=True)
 
 
 
