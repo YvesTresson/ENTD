@@ -401,3 +401,7 @@ st.write(
 st.write(
    "- Il s'agit d'une application encore en développement. Les analyses tâchent d'être exactes mais ne sont pas garanties."
 )
+
+st.write(
+   "Contact : yves arobase tresson.eu"
+)
